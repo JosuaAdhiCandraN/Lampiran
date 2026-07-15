@@ -1,0 +1,458 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "collection": "Cases",
+        "options": {},
+        "query": "={{ \nJSON.stringify({\n  \"generated_at\": {\n    \"$gte\": $('Code1').last().json.gte,\n    \"$lt\": $('Code1').last().json.lt\n  }\n}) \n}}"
+      },
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1.3,
+      "position": [
+        -624,
+        64
+      ],
+      "id": "c0fb7dd5-3656-4dd0-9b57-de45a8736825",
+      "name": "Find documents",
+      "alwaysOutputData": true,
+      "credentials": {
+        "mongoDb": {
+          "id": "ZTEkM15aEAw1Bm4S",
+          "name": "MongoDB account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "You are a Senior SOC (Security Operations Center) Analyst with over 10 years of experience in incident response, threat hunting, and digital forensics. You have analyzed thousands of security cases covering brute force attacks, SQL injection, malware, lateral movement, privilege escalation, and data exfiltration.\n\nYOUR TASK:\nYou will receive one case containing a set of suspicious logs originating from the same IP address. Perform triage and analysis like a professional SOC analyst, then produce a structured diagnosis.\n\nCRITICAL DECISION: DETERMINE IF THIS IS AN ACTUAL THREAT\nBased on your analysis of the logs, you MUST first decide whether this case represents an \"Actual Threat\" (true) or a \"False Positive / Benign Activity\" (false). You will output this decision in the `is_actual_threat` field of your JSON.\n- IF YOU DECIDE IT IS AN ACTUAL THREAT (true): Treat this as a confirmed or highly probable active attack. Focus on identifying the attack vector, assessing real impact, and providing urgent mitigation. MITRE ATT&CK mapping is highly expected. Set 'urgensi' to 'high' or 'critical'.\n- IF YOU DECIDE IT IS A FALSE POSITIVE / BENIGN (false): Treat this case with skepticism. Explain why this might be normal behavior, a misconfigured rule, or a benign scanner. Lower the urgency. MITRE mapping should be an empty array [] unless there is clear evidence of reconnaissance. Set 'urgensi' to 'low' or 'medium'.\n\nCONTEXT ABOUT THE INPUT DATA:\n- \"case_id\": A unique identifier for this security case.\n- \"source\": The primary source IP address being analyzed.\n- \"full_log\": An array of raw log strings containing timestamps, system components, and event details.\n- \"total_suspicious_logs\": The total count of suspicious logs in this case.\n- \"rule_levels\": An array of severity scores from a rule-based detection system (similar to Wazuh/OSSEC), scale 0-15. Higher means more critical. Level 12+ usually indicates an active or successful attack; level 1-7 is usually informational or a minor attempt.\n- \"generated_at\": The timestamp when this case was generated.\n\nHOW TO THINK (do this internally before answering):\n1. Identify the source IP address from the `source` field (and verify it in the logs) and ensure it is correctly placed in the `ip_address` field.\n2. Read all `full_log` details: what happened, the sequence of events, and the pattern from that IP.\n3. Check the `rule_levels` array to identify the severity of the triggered rules for this case.\n4. Look for anomalies: unusual frequency, suspicious timing, behavior deviating from normal baseline.\n5. CRITICAL: Evaluate the evidence to decide if this is a real attack or a false positive. Do not assume every alert is a real attack.\n6. Map findings to MITRE ATT&CK tactics/techniques ONLY if clearly supported by evidence in the log.\n7. Determine impact and urgency based on the criticality of the affected asset and the stage of the attack (attempted vs. succeeded vs. data already exfiltrated).\n\nSTRICT RULES:\n- Do not fabricate facts that are not present in the log. Every conclusion must be traceable back to specific evidence in the log.\n- If the log is ambiguous or has weak evidence, set `is_actual_threat` to false, lower the confidence_factor, and explain your doubt in the reasoning.\n- mitre_mapping may be an empty array [] if no technique genuinely matches the evidence. Do not force a mapping.\n- respon_lanjutan must be specific and actionable (mention the relevant IP/host/user), not generic advice like \"investigate further\" alone.\n- Write all output text in English, formatted like a professional incident report.\n- mitre_mapping values must stay in their standard English MITRE format (e.g. \"T1110.001 - Brute Force: Password Guessing\").\n- Align your urgency, response, and reasoning strictly with your own `is_actual_threat` decision.\n- Ensure the `ip_address` field accurately reflects the `source` IP from the input.\n- Always include the `case_id` from the input in your output to maintain traceability.\n\nRespond ONLY in JSON format matching the given schema, with no preamble, no closing remarks, and no markdown code block.",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -176,
+        192
+      ],
+      "id": "cdbdfa46-e8bd-4110-9035-b789d35a1c1a",
+      "name": "AI Agent",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "project": {
+          "__rl": true,
+          "value": "10033",
+          "mode": "list",
+          "cachedResultName": "IT Help Desk"
+        },
+        "issueType": {
+          "__rl": true,
+          "value": "10036",
+          "mode": "list",
+          "cachedResultName": "[System] Incident"
+        },
+        "summary": "={{ $json.output.dugaan_kejadian }}",
+        "additionalFields": {
+          "description": "=Source IP:* {{ $json.output.ip_address }}\n*Ringkasan:* {{ $json.output.ringkasan_log }}\n*Alasan Analisis:* {{ $json.output.alasan_ai_agent }}\n*Rekomendasi Tindakan:* {{ $json.output.respon_lanjutan }}\n*MITRE ATT&CK:* {{ $json.output.mitre_mapping.join(', ') }}\n*Confidence:* {{ $json.output.confidence_factor }}"
+        }
+      },
+      "type": "n8n-nodes-base.jira",
+      "typeVersion": 1,
+      "position": [
+        400,
+        96
+      ],
+      "id": "ea3b1a7a-2508-4713-ac11-844e03300a5b",
+      "name": "Create an issue",
+      "alwaysOutputData": false,
+      "executeOnce": false,
+      "retryOnFail": false,
+      "credentials": {
+        "jiraSoftwareCloudApi": {
+          "id": "K4FDDLayvp77hM0h",
+          "name": "Jira SW Cloud account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": "={{ $json.menitTunggu }}"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        848,
+        192
+      ],
+      "id": "8a4142f6-db98-458b-8e3b-0b24fc37de59",
+      "name": "Wait",
+      "webhookId": "d93bf98c-bbfb-4b1f-9cd8-5433c46ad9a9"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        400,
+        -128
+      ],
+      "id": "c909d0e9-9add-4047-b379-09b6c8a812fb",
+      "name": "No Operation, do nothing"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        400,
+        288
+      ],
+      "id": "6d516311-a4a3-4ad6-8630-9554f8556d34",
+      "name": "No Operation, do nothing1"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-flash-lite",
+        "options": {
+          "topP": 0.9
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        -160,
+        416
+      ],
+      "id": "8ca71238-227f-4622-a1d9-ad71fffdf5d3",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "T6JFYSKchc5LaHVw",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"case_id\": {\n      \"type\": \"string\",\n      \"description\": \"The unique identifier of the case, copied directly from the input data.\"\n    },\n    \"ip_address\": {\n      \"type\": \"string\",\n      \"description\": \"The source IP address extracted from the 'source' field and verified in the logs.\"\n    },\n    \"is_actual_threat\": {\n      \"type\": \"boolean\",\n      \"description\": \"Your professional judgment: true if this is an actual, successful, or highly probable attack; false if it is a false positive, benign activity, or minor attempt.\"\n    },\n    \"dugaan_kejadian\": {\n      \"type\": \"string\",\n      \"description\": \"Short description of the suspected incident type, e.g. 'Brute Force SSH', 'SQL Injection', 'Lateral Movement'. Max 10 words, written in English.\"\n    },\n    \"ringkasan_log\": {\n      \"type\": \"string\",\n      \"description\": \"Narrative summary in English of the chronology and identified attack pattern from the logs.\"\n    },\n    \"alasan_ai_agent\": {\n      \"type\": \"string\",\n      \"description\": \"Logical, evidence-based explanation in English of why this conclusion was reached, referencing specific log details.\"\n    },\n    \"respon_lanjutan\": {\n      \"type\": \"string\",\n      \"description\": \"Specific, actionable recommendation in English, mentioning the relevant IP/host/user.\"\n    },\n    \"mitre_mapping\": {\n      \"type\": \"array\",\n      \"items\": { \"type\": \"string\" },\n      \"description\": \"List of relevant MITRE ATT&CK tactics/techniques in format 'TXXXX.XXX - Technique Name'. Empty array [] if none clearly apply.\"\n    },\n    \"urgensi\": {\n      \"type\": \"string\",\n      \"enum\": [\"low\", \"medium\", \"high\", \"critical\"],\n      \"description\": \"Urgency level based on potential impact and attack stage.\"\n    },\n    \"confidence_factor\": {\n      \"type\": \"number\",\n      \"minimum\": 0,\n      \"maximum\": 1,\n      \"description\": \"Confidence level of the diagnosis, 0.0 to 1.0.\"\n    }\n  },\n  \"required\": [\n    \"case_id\",\n    \"ip_address\",\n    \"is_actual_threat\",\n    \"dugaan_kejadian\",\n    \"ringkasan_log\",\n    \"alasan_ai_agent\",\n    \"respon_lanjutan\",\n    \"mitre_mapping\",\n    \"urgensi\",\n    \"confidence_factor\"\n  ]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -32,
+        416
+      ],
+      "id": "da182dd2-3dee-484b-86ed-325d994c04cf",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "d894a6f2-4f9e-4d94-bedc-043381ea9e8d",
+              "leftValue": "={{ $json.output.is_actual_threat }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        176,
+        192
+      ],
+      "id": "7bbc235f-bddb-4d7f-8142-bde660762990",
+      "name": "If"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1072,
+        192
+      ],
+      "id": "9be53147-1efe-4f3b-b071-c4008efacd36",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "75b5c572-d71c-4153-9575-ca7494f8300d",
+              "leftValue": "={{ $('Find documents').item?.json && Object.keys($('Find documents').item.json).length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -400,
+        64
+      ],
+      "id": "a157bcc5-fcd8-406e-bd80-844352172013",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Ambil waktu dari Code1\nconst currentWindow = $('Code1').item.json;\nconst staticData = $getWorkflowStaticData('global');\n\nif (staticData.emptyCounter === undefined) {\n  staticData.emptyCounter = 0;\n}\n\nlet nextGte = currentWindow.gte;\nlet nextLt = currentWindow.lt;\n\nstaticData.emptyCounter += 1;\n\n// Jika sudah 3x putaran kosong (2 periode toleransi habis)\nif (staticData.emptyCounter >= 3) {\n  staticData.emptyCounter = 0; // Reset counter\n  \n  // PAKSA LONCAT KE JAM BERIKUTNYA\n  nextGte = currentWindow.lt;\n  const nextHour = new Date(currentWindow.lt);\n  nextHour.setUTCHours(nextHour.getUTCHours() + 1);\n  nextLt = nextHour.toISOString();\n} else {\n  // TAHAN DI JAM YANG SAMA\n  nextGte = currentWindow.gte;\n  nextLt = currentWindow.lt;\n}\n\n// Kirimkan hasilnya langsung lewat JSON ke node berikutnya (Wait -> Code1)\nreturn [{ \n  json: { \n    status: \"jalur_false_kosong_terproses\", \n    menitTunggu: 10,\n    operGte: nextGte,\n    operLt: nextLt\n  } \n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        -128
+      ],
+      "id": "195d382e-7539-4258-9f8d-814bfba01749",
+      "name": "update"
+    },
+    {
+      "parameters": {
+        "jsCode": "const currentWindow = $('Code1').item.json;\nconst staticData = $getWorkflowStaticData('global');\n\n// Bersihkan counter karena ada data sukses\nstaticData.emptyCounter = 0;\n\n// LANGSUNG MAJU 1 JAM PENUH\nconst nextGte = currentWindow.lt;\nconst nextHour = new Date(currentWindow.lt);\nnextHour.setUTCHours(nextHour.getUTCHours() + 1);\nconst nextLt = nextHour.toISOString();\n\nreturn [{ \n  json: { \n    status: \"jalur_true_sukses_maju_satu_jam\", \n    menitTunggu: 5,\n    operGte: nextGte,\n    operLt: nextLt\n  } \n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        192
+      ],
+      "id": "d1c219f7-e7f3-4dcc-ba19-d666496ce4c4",
+      "name": "update1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Waktu fallback awal saat pertama kali workflow di-klik Start\nlet gteTime = '2026-07-01T16:00:00Z';\nlet ltTime = '2026-07-01T17:00:00Z';\n\ntry {\n  // Ambil data kiriman terakhir yang lolos lewat node Wait\n  const lastWaitOutput = $('Wait').item.json;\n  \n  if (lastWaitOutput && lastWaitOutput.operGte && lastWaitOutput.operLt) {\n    // Jika ada waktu hasil operan dari update / update1, gunakan ini!\n    gteTime = lastWaitOutput.operGte;\n    ltTime = lastWaitOutput.operLt;\n  }\n} catch (e) {\n  // Jika run pertama kali dan node Wait belum punya data, dia aman pakai fallback di atas\n}\n\nreturn [{ \n  json: { \n    gte: gteTime, \n    lt: ltTime \n  } \n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -848,
+        192
+      ],
+      "id": "c8faee0a-c686-4e5e-b03e-3648802f89c9",
+      "name": "Code1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Find documents": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create an issue": {
+      "main": [
+        [
+          {
+            "node": "update1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Operation, do nothing1": {
+      "main": [
+        [
+          {
+            "node": "update1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Create an issue",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Operation, do nothing1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Operation, do nothing": {
+      "main": [
+        [
+          {
+            "node": "update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update1": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code1": {
+      "main": [
+        [
+          {
+            "node": "Find documents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "timezone": "Asia/Jakarta",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "b99eafc9-4512-4bd5-80ab-49e7e6a207c9",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "fbdee335bdd71256188942f1f36ce54ab1e8ce9e3312d957a41ce15c1d73bd7a"
+  },
+  "nodeGroups": [],
+  "id": "yoLgPH0d26Mx1nu8",
+  "tags": []
+}
