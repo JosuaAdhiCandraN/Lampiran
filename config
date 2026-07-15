@@ -1,1 +1,113 @@
+//n8n configuration for each node
 
+//node code1 "range of time"
+// Waktu fallback awal saat pertama kali workflow di-klik Start
+let gteTime = '2026-07-01T16:00:00Z';
+let ltTime = '2026-07-01T17:00:00Z';
+
+try {
+  // Ambil data kiriman terakhir yang lolos lewat node Wait
+  const lastWaitOutput = $('Wait').item.json;
+  
+  if (lastWaitOutput && lastWaitOutput.operGte && lastWaitOutput.operLt) {
+    // Jika ada waktu hasil operan dari update / update1, gunakan ini!
+    gteTime = lastWaitOutput.operGte;
+    ltTime = lastWaitOutput.operLt;
+  }
+} catch (e) {
+  // Jika run pertama kali dan node Wait belum punya data, dia aman pakai fallback di atas
+}
+
+return [{ 
+  json: { 
+    gte: gteTime, 
+    lt: ltTime 
+  } 
+}];
+
+//time range update pada node update
+// Ambil waktu dari Code1 
+const currentWindow = $('Code1').item.json;
+const staticData = $getWorkflowStaticData('global');
+
+if (staticData.emptyCounter === undefined) {
+  staticData.emptyCounter = 0;
+}
+
+let nextGte = currentWindow.gte;
+let nextLt = currentWindow.lt;
+
+staticData.emptyCounter += 1;
+
+// Jika sudah 3x putaran kosong (2 periode toleransi habis)
+if (staticData.emptyCounter >= 3) {
+  staticData.emptyCounter = 0; // Reset counter
+  
+  // PAKSA LONCAT KE JAM BERIKUTNYA
+  nextGte = currentWindow.lt;
+  const nextHour = new Date(currentWindow.lt);
+  nextHour.setUTCHours(nextHour.getUTCHours() + 1);
+  nextLt = nextHour.toISOString();
+} else {
+  // TAHAN DI JAM YANG SAMA
+  nextGte = currentWindow.gte;
+  nextLt = currentWindow.lt;
+}
+
+// Kirimkan hasilnya langsung lewat JSON ke node berikutnya (Wait -> Code1)
+return [{ 
+  json: { 
+    status: "jalur_false_kosong_terproses", 
+    menitTunggu: 10,
+    operGte: nextGte,
+    operLt: nextLt
+  } 
+}]; 
+
+//time range update pada node update1
+const currentWindow = $('Code1').item.json;
+const staticData = $getWorkflowStaticData('global');
+
+// Bersihkan counter karena ada data sukses
+staticData.emptyCounter = 0;
+
+// LANGSUNG MAJU 1 JAM PENUH
+const nextGte = currentWindow.lt;
+const nextHour = new Date(currentWindow.lt);
+nextHour.setUTCHours(nextHour.getUTCHours() + 1);
+const nextLt = nextHour.toISOString();
+
+return [{ 
+  json: { 
+    status: "jalur_true_sukses_maju_satu_jam", 
+    menitTunggu: 5,
+    operGte: nextGte,
+    operLt: nextLt
+  } 
+}];
+
+
+//db 
+{{ 
+JSON.stringify({
+  "generated_at": {
+    "$gte": $('Code1').last().json.gte,
+    "$lt": $('Code1').last().json.lt
+  }
+}) 
+}}
+
+
+//jira -description
+Source IP:* {{ $json.output.ip_address }}
+*Ringkasan:* {{ $json.output.ringkasan_log }}
+*Alasan Analisis:* {{ $json.output.alasan_ai_agent }}
+*Rekomendasi Tindakan:* {{ $json.output.respon_lanjutan }}
+*MITRE ATT&CK:* {{ $json.output.mitre_mapping.join(', ') }}
+*Confidence:* {{ $json.output.confidence_factor }} 
+
+
+
+google_PALM API_key : ertgyhujikl
+Mongo_URI:dfghj@rxrtctay
+jira_API_key :ertyhujkl
